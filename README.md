@@ -6,3 +6,5 @@ list
  - postgresql
  - owncloud
  - n8n
+    - queue mode
+    - standalone mode
