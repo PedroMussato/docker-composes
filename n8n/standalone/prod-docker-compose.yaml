@@ -1,0 +1,91 @@
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+
+      - --certificatesresolvers.le.acme.tlschallenge=true
+      - --certificatesresolvers.le.acme.email=${SSL_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+
+      # opcional
+      - --accesslog=true
+      - --log.level=INFO
+
+      # dashboard desligado por segurança
+      - --api.dashboard=false
+      - --api.insecure=false
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    volumes:
+      - ${N8N_DATA_DIR}/traefik/letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+    networks:
+      - proxy
+
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+
+    environment:
+      - TZ=${GENERIC_TIMEZONE}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - N8N_HOST=${SUBDOMAIN}.${DOMAIN_NAME}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://${SUBDOMAIN}.${DOMAIN_NAME}/
+      - N8N_EDITOR_BASE_URL=https://${SUBDOMAIN}.${DOMAIN_NAME}
+      - N8N_PROXY_HOPS=1
+      - NODE_ENV=production
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - EXECUTIONS_DATA_PRUNE_MAX_COUNT=10000
+      - N8N_DIAGNOSTICS_ENABLED=false
+
+    volumes:
+      - ${N8N_DATA_DIR}/n8n_data:/home/node/.n8n
+      - ${N8N_DATA_DIR}/local-files:/files
+
+    networks:
+      - proxy
+
+    depends_on:
+      - traefik
+
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.n8n.rule=Host(`${SUBDOMAIN}.${DOMAIN_NAME}`)
+      - traefik.http.routers.n8n.entrypoints=websecure
+      - traefik.http.routers.n8n.tls=true
+      - traefik.http.routers.n8n.tls.certresolver=le
+      - traefik.http.services.n8n.loadbalancer.server.port=5678
+      - traefik.http.middlewares.n8n-sec.headers.stsSeconds=31536000
+      - traefik.http.middlewares.n8n-sec.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.n8n-sec.headers.stsPreload=true
+      - traefik.http.middlewares.n8n-sec.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.n8n-sec.headers.browserXssFilter=true
+      - traefik.http.routers.n8n.middlewares=n8n-sec@docker
+      - com.centurylinklabs.watchtower.enable=true
+
+networks:
+  proxy:
+    name: proxy
