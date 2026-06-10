@@ -1,0 +1,27 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - /Users/jameson/docker/ai/ollama:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    ports:
+      - "3000:8080"
+    volumes:
+      - /Users/jameson/docker/ai/open-webui:/app/backend/data
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - CORS_ALLOW_ORIGIN=http://localhost:3000
+      - USER_AGENT=local-ai-lab
+      - HF_HUB_OFFLINE=1
