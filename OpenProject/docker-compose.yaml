@@ -1,0 +1,16 @@
+services:
+  openproject:
+    image: openproject/openproject:17
+    container_name: openproject
+    restart: unless-stopped
+
+    ports:
+      - "8080:80"
+
+    environment:
+      OPENPROJECT_HOST__NAME: openproject.example.com
+      SECRET_KEY_BASE: "<your-secret-key-base>"
+
+    volumes:
+      - /var/lib/openproject/pgdata:/var/openproject/pgdata
+      - /var/lib/openproject/assets:/var/openproject/assets
